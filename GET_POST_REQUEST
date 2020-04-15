@@ -48,6 +48,8 @@
 	body, err := ioutil.ReadAll(response.Body)
 	if err != nil {
 	}
+        //向前端页面返回数据，json格式必须正确，
+	fmt.Fprintf(writer, string(body))
 	fmt.Println(string(body)) //打印返回文本
 	fmt.Println("***************************************")
 }
