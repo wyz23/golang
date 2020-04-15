@@ -1,0 +1,63 @@
+ // 一、直接在逻辑代码里嵌入的请求
+  client := http.Client{}
+	data := "username = bd123"//设置提交数据
+	url := "http://www.baidu.com"
+	request, err := http.NewRequest("GET", url, strings.NewReader(data))
+	if err != nil {
+  
+	}
+	response, err := client.Do(request)
+	if err != nil {
+  
+	}
+  //定义map
+	mp := map[string]string{}
+  /*
+  * 第一种方法
+  */
+  //取出所有response数据
+	body, err := ioutil.ReadAll(response.Body)
+  //json 转 map, body用ioutil.ReadAll()取出来是byte[]，正好直接使用下面方法
+	json.Unmarshal(body,&mp)
+  // 取值
+  fmt.Println(mp["key"])
+  
+  /*
+  * 第二种方法 取response数据
+  */
+  //stdout := os.Stdout
+	//_, err = io.Copy(stdout, response.Body)
+	//status := response.StatusCode
+  //fmt.Printf("\n",status)
+  
+  
+  二、用main方法测试
+  
+  
+  func httpPost(writer http.ResponseWriter, request *http.Request) {
+	client := http.Client{}
+	data := "A=1" //设置提交数据
+	request, err := http.NewRequest("GET", "http://baidu.com", strings.NewReader(data))
+	if err != nil {
+	}
+	//request.Header.Set("Authorization", "f277cbea0e4441fdb3248a8c5ccda4042bc4ee0c8c1a45e4a50c852f69006c65")
+	response, err := client.Do(request)
+	if err != nil {
+	}
+	defer response.Body.Close()
+	body, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+	}
+	fmt.Println(string(body)) //打印返回文本
+	fmt.Println("***************************************")
+}
+
+func main() {
+	http.HandleFunc("/baidu", httpPost)
+	err := http.ListenAndServe(":9090", nil)
+	if err != nil {
+		log.Fatal("ListenAndserve:", err)
+	}
+}
+
+//在客户端访问localhost:9090/baidu即可
