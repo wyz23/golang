@@ -38,6 +38,7 @@ func GenValidateCode(width int) string {
 	return sb.String()
 }
 // SendMail ...
+//不是qq邮箱可能会出现要验证证书
 func SendMail(mailTo []string, subject string, body string) error {
 
 	mailConn := map[string]string{
