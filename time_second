@@ -1,0 +1,9 @@
+
+// 一个动态的变量乘以秒数
+	a,_:=strconv.ParseInt("20",10,32)
+  b := time.Second * 20   // 正确
+	c := time.Duration(a)*time.Second //正确
+  
+  //d := time.Second * a           //编译不通过
+  fmt.Println(b)
+	fmt.Println(c)
