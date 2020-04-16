@@ -1,1 +1,153 @@
 
+package handler
+
+import (
+	"crypto/tls"
+	"fmt"
+	"git.dhc.com.cn/dtc/ctp/global"
+	"git.dhc.com.cn/go/pkg/core/log"
+	"github.com/gin-gonic/gin"
+	"github.com/go-gomail/gomail"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/zap/ctxzap"
+	"math/rand"
+	"strings"
+	"time"
+)
+
+// EmailParam 发送邮件的定义
+type EmailParam struct {
+	// ServerHost 邮箱服务器地址，如腾讯企业邮箱为smtp.exmail.qq.com
+	ServerHost string
+	// ServerPort 邮箱服务器端口，如腾讯企业邮箱为465
+	ServerPort int
+	// FromEmail　发件人邮箱地址
+	FromEmail string
+	// FromPasswd 发件人邮箱密码（注意，这里是明文形式），TODO：如果设置成密文？
+	FromPasswd string
+	// Toers 接收者邮件，如有多个，则以英文逗号(“,”)隔开，不能为空
+	Toers string
+	// CCers 抄送者邮件，如有多个，则以英文逗号(“,”)隔开，可以为空
+	CCers string
+}
+
+// 全局变量，因为发件人账号、密码，需要在发送时才指定
+// 注意，由于是小写，外面的包无法使用
+var serverHost, fromEmail, fromPasswd string
+var serverPort int
+
+var m *gomail.Message
+func InitEmail(ep *EmailParam) {
+	toers := []string{}
+
+	serverHost = ep.ServerHost
+	serverPort = ep.ServerPort
+	fromEmail = ep.FromEmail
+	fromPasswd = ep.FromPasswd
+
+	m = gomail.NewMessage()
+
+	if len(ep.Toers) == 0 {
+		return
+	}
+
+	for _, tmp := range strings.Split(ep.Toers, ",") {
+		toers = append(toers, strings.TrimSpace(tmp))
+	}
+
+	// 收件人可以有多个，故用此方式
+	m.SetHeader("To", toers...)
+
+	//抄送列表
+	if len(ep.CCers) != 0 {
+		for _, tmp := range strings.Split(ep.CCers, ",") {
+			toers = append(toers, strings.TrimSpace(tmp))
+		}
+		m.SetHeader("Cc", toers...)
+	}
+
+	// 发件人
+	// 第三个参数为发件人别名，如"李大锤"，可以为空（此时则为邮箱名称）
+	m.SetAddressHeader("From", fromEmail, "")
+}
+// SendEmail body支持html格式字符串
+func SendEmail(subject, body string) error{
+	// 主题
+	m.SetHeader("Subject", subject)
+	// 正文
+	m.SetBody("text/html", body)
+
+	d := gomail.NewPlainDialer(serverHost, serverPort, fromEmail, fromPasswd)
+	d.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	// 发送
+	err := d.DialAndSend(m)
+	return err
+}
+// GenValidateCode 取随机数
+func GenValidateCode(width int) string {
+	numeric := [10]byte{0,1,2,3,4,5,6,7,8,9}
+	r := len(numeric)
+	rand.Seed(time.Now().UnixNano())
+
+	var sb strings.Builder
+	for i := 0; i < width; i++ {
+		fmt.Fprintf(&sb, "%d", numeric[ rand.Intn(r) ])
+	}
+	return sb.String()
+}
+
+
+func (h *Handler)SendMail(ctx *gin.Context) {
+	logger := ctxzap.Extract(ctx).Sugar()
+	log.Infof(logger, " Start(%v).", ctx.Request)
+  //向此邮箱发送邮件
+	myToers := ctx.Request.FormValue("email")
+  
+  //发送的域名和端口（qq的如下） 其他的例如：serverHost := "wyz.com.cn"  serverPort := 36 
+	serverHost := "smtp.qq.com"
+	serverPort := 465
+  
+  // 发送的邮箱和密码（qq的用授权码）
+	fromEmail := "xxxxxxxxxxxxxxx@qq.com"
+	fromPasswd := "********"
+  
+  //向此邮箱发送邮件
+	//myToers := "xxxxx@qq.com" // 逗号隔开
+	myCCers := ""
+
+	subject := "标题"
+	body := `
+		<html>
+		<body style="background:#f5f5f5">
+		<div style="padding-left:50px; padding-top:50px">
+		<h4>`+myToers+`，您好：</h4>
+		</br>
+		</br>
+		感谢您使用xxxx，您的邮箱验证码如下，请在2小时内输入验证码进行下一步操作。</br>
+		您的验证码是：</br><h4>`+GenValidateCode(6)+
+		`</h4></br></br>
+		<a href="http://www.baidu.com">点击这里了解更多</a></br></br>
+		<div style="padding-bottom:50px" align="center">此邮件为系统邮件请勿回复，如您想了解更多功能，欢迎访问我们的网站获取帮助。</div>
+		</div>
+		</body>
+		</html>
+		`
+	// 结构体赋值
+	myEmail := &EmailParam {
+		ServerHost: serverHost,
+		ServerPort: serverPort,
+		FromEmail:  fromEmail,
+		FromPasswd: fromPasswd,
+		Toers:      myToers,
+		CCers:      myCCers,
+	}
+	InitEmail(myEmail)
+	err := SendEmail(subject, body)
+	if err != nil {
+		panic(err)
+	}
+	log.Infof(logger, " End(%v).",err )
+	code := global.SUCCESS
+	ctx.JSON(code, gin.H{
+		"status": code,
+	})
+}
