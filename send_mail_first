@@ -1,0 +1,60 @@
+package main_test
+
+import (
+	"fmt"
+	"log"
+	"math/rand"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestIsSuccess(t *testing.T) {
+	mailTo := []string{
+		"xxxxx@com.cn",
+	}
+	subject := "标题"
+	// 邮件正文
+	body := GenValidateCode(6)
+	err := SendMail(mailTo, subject, body)
+	if err != nil {
+		log.Println(err)
+		fmt.Println("send fail")
+		return
+	}
+	fmt.Println("send successfully")
+}
+// GenValidateCode 取随机数
+func GenValidateCode(width int) string {
+	numeric := [10]byte{0,1,2,3,4,5,6,7,8,9}
+	r := len(numeric)
+	rand.Seed(time.Now().UnixNano())
+
+	var sb strings.Builder
+	for i := 0; i < width; i++ {
+		fmt.Fprintf(&sb, "%d", numeric[ rand.Intn(r) ])
+	}
+	return sb.String()
+}
+// SendMail ...
+func SendMail(mailTo []string, subject string, body string) error {
+
+	mailConn := map[string]string{
+		"user": "xxxxxxx@com.cn",
+		"pass": "密码",
+		"host": "域名",
+		"port": "端口",
+	}
+
+	port, _ := strconv.Atoi(mailConn["port"]) //转换端口类型为int
+	m := gomail.NewMessage()
+	m.SetHeader("From", mailConn["user"])
+	m.SetHeader("To", mailTo...)
+	m.SetHeader("Subject", subject)
+	m.SetBody("text/html", body)
+	d := gomail.NewDialer(mailConn["host"], port, mailConn["user"], mailConn["pass"])
+	err := d.DialAndSend(m)
+	return err
+
+}
