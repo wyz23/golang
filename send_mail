@@ -102,7 +102,7 @@ func (h *Handler)SendMail(ctx *gin.Context) {
   //向此邮箱发送邮件
 	myToers := ctx.Request.FormValue("email")
   
-  //发送的域名和端口（qq的如下） 其他的例如：serverHost := "wyz.com.cn"  serverPort := 36 
+  //发送的域名和端口（qq的如下） 其他的例如：serverHost := "wyz.com.cn" 或者serverHost := 127.0.0.1  serverPort := 36 
 	serverHost := "smtp.qq.com"
 	serverPort := 465
   
