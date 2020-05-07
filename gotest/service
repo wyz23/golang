@@ -1,0 +1,138 @@
+
+
+/**
+导入
+"bou.ke/monkey"
+. "github.com/agiledragon/gomonkey"
+"github.com/magiconair/properties/assert"
+
+TestService_CreateUser 此方法测试代码内部有发送请求，测试请求
+
+以下除了JSON内的东西改其他不改
+gock.New("https://test.com").
+		Post("/regapi").
+		MatchType("json").
+		JSON(map[string]string{"user": "EXTERNAL", "pwd": "passW0rd"}).
+		Reply(201).JSON(`{"success":true,"token":"f734e20e96334966aa23bc47976a86ef8c06467db8c848ddbd5bed6609802b6d"}`)
+	body := bytes.NewBuffer([]byte(`{"user": "EXTERNAL", "pwd": "passW0rd"}`))
+	res, _ := http.Post("https://test.com/regapi", "application/json", body)
+
+JSON(`{"success":true,"token":"f734e20e96334966aa23bc47976a86ef8c06467db8c848ddbd5bed6609802b6d"}`)
+JSON括号内的内容就是真实请求接口返回的数据response（可以随便写，只要和实际接口返回的参数格式一样即可）
+
+*/
+
+package service
+
+import (
+	"bou.ke/monkey"
+	"bytes"
+	"git.dhc.com.cn/dtc/ctp/dao"
+	"git.dhc.com.cn/dtc/ctp/model"
+	"git.dhc.com.cn/dtc/ctp/utils"
+	. "github.com/agiledragon/gomonkey"
+	"github.com/magiconair/properties/assert"
+	"gopkg.in/h2non/gock.v1"
+	"net/http"
+	"reflect"
+	"testing"
+)
+
+var d *dao.Dao
+var s Service
+
+// TestService_GetUserInfoByEmail ...
+func TestService_GetUserInfoByEmail(t *testing.T) {
+	user := &model.CtpUser{
+		UserCode: "user123",
+	}
+	// mock dao的返回值
+	monkey.PatchInstanceMethod(reflect.TypeOf(d), "GetUserInfoByEmail", func(_ *dao.Dao, _ string) *model.CtpUser {
+		return user
+	})
+
+	email := "123456@qq.com"
+	userInfo := s.GetUserInfoByEmail(email)
+
+	if userInfo.UserCode != "user123" {
+		t.Errorf("TestService_GetUserInfoByEmail: userInfo.UserCode is not expected\n")
+		return
+	}
+}
+
+// TestService_GetEmailCode ...
+func TestService_GetEmailCode(t *testing.T) {
+	emailMock := &model.CtpEmailCode{
+		EmailValidation: "654321",
+	}
+	monkey.PatchInstanceMethod(reflect.TypeOf(d), "GetEmailCode", func(_ *dao.Dao, email string) *model.CtpEmailCode {
+		return emailMock
+	})
+
+	email := "123456@qq.com"
+	emailInfo := s.GetEmailCode(email)
+	if emailInfo.EmailValidation != "654321" {
+		t.Error("TestService_GetEmailCode: emailInfo.EmailValidation is not expected\n")
+		return
+	}
+}
+
+// TestService_GetUserCode ...
+func TestService_GetUserCode(t *testing.T) {
+	userMock := &model.CtpUser{
+		UserCode: "user123",
+	}
+	monkey.PatchInstanceMethod(reflect.TypeOf(d), "GetUserCode", func(_ *dao.Dao, userCode string) *model.CtpUser {
+		return userMock
+	})
+	userCode := "user123"
+	userInfo := s.GetUserCode(userCode)
+	assert.Equal(t, "user123", userInfo.UserCode)
+}
+
+// TestService_ForgetPassword ...
+func TestService_ForgetPassword(t *testing.T) {
+	monkey.PatchInstanceMethod(reflect.TypeOf(d), "ChangePassWord", func(_ *dao.Dao, ctpUser model.CtpUser) bool { return true })
+	ctpUser := model.CtpUser{
+		Email:           "123456@qq.com",
+		Password:        "123456",
+		EmailValidation: "654321",
+		UserCode:        "user123",
+	}
+	bool := s.ForgetPassword(ctpUser)
+	if !bool {
+		t.Error("TestService_ForgetPassword: bool is not expected\n")
+	}
+}
+
+// TestService_CreateUser ... DEBUG pass DEBUG能通过
+func TestService_CreateUser(t *testing.T) {
+	mockHttp := &http.Client{}
+	gock.New("https://test.com").
+		Post("/regapi").
+		MatchType("json").
+		JSON(map[string]string{"user": "EXTERNAL", "pwd": "passW0rd"}).
+		Reply(201).JSON(`{"success":true,"token":"f734e20e96334966aa23bc47976a86ef8c06467db8c848ddbd5bed6609802b6d"}`)
+	body := bytes.NewBuffer([]byte(`{"user": "EXTERNAL", "pwd": "passW0rd"}`))
+	res, _ := http.Post("https://test.com/regapi", "application/json", body)
+	ss := http.Response{StatusCode: 200, Body: res.Body}
+	patches := ApplyMethod(reflect.TypeOf(mockHttp), "Do", func(_ *http.Client, req *http.Request) (*http.Response, error) {
+		return &ss, nil
+	})
+	defer patches.Reset()
+
+	monkey.Patch(utils.Md5Salt, func(_ string, _ string) string { return "safasfafa54asf5a1sf54af65" })
+	monkey.PatchInstanceMethod(reflect.TypeOf(d), "NextUserID", func(_ *dao.Dao) (string, error) { return "", nil })
+	monkey.PatchInstanceMethod(reflect.TypeOf(d), "CreateUser", func(_ *dao.Dao, ctpUser model.CtpUser) bool { return true })
+
+	ctpUser := model.CtpUser{
+		Email:           "123456@qq.com",
+		Password:        "123456",
+		EmailValidation: "654321",
+		UserCode:        "user123",
+		StfToken:        "4565F6ASFAASGWQ",
+	}
+	bool, _ := s.CreateUser(ctpUser)
+
+	assert.Equal(t, true, bool)
+}
