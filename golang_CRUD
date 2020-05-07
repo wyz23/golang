@@ -1,0 +1,91 @@
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	_ "github.com/lib/pq"
+	"log"
+)
+type customer struct {
+	id    int
+	pname string
+	price float32
+	pnum  int
+}
+func getDB()(*sql.DB, error){
+	db, err := sql.Open("postgres", "user=postgres password=123456 dbname=test sslmode=disable")
+	if err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	db.SetMaxOpenConns(30)
+	db.SetMaxIdleConns(1)
+	db.Ping()
+	return db, nil
+}
+func main() {
+delete(4)
+c := customer{15,"opopop", 32.336, 66}
+	update(c)
+//insert(c)
+	query(&c)
+}
+
+func query(str *customer ) {
+	db, err := getDB()
+	rows, err := db.Query("select * from customer where id = $1  and pname = $2 order by id", str.id,str.pname)
+	if err != nil {
+		log.Println(err)
+	}
+	for rows.Next() {
+		//var id int
+		//var pname string
+		//var price float32
+		//var pnum int
+		var s customer
+		if err := rows.Scan(&s.id, &s.pname, &s.price, &s.pnum); err != nil {
+			log.Println(err)
+		}
+		fmt.Printf("id: %d\tpname: %s\tprice: %.2f\n", s.id, s.pname, s.price)
+	}
+}
+
+func delete (id int)(b bool) {
+	db, err := getDB()
+	stm, err := db.Prepare("delete from customer where id = $1")
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+	result, err1 := stm.Exec(id)
+	if err1 != nil {
+		log.Println(err1)
+	}
+	fmt.Println("deleter result: ",result)
+	return true
+}
+func insert (c customer) (b bool) {
+	db, err := getDB()
+	stm , err := db.Prepare("insert into customer (id, pname, price, pnum) values($1, $2, $3, $4)")
+	if err != nil {
+		log.Println(err)
+	}
+	result ,_ :=stm.Exec(c.id, c.pname, c.price, c.pnum)
+	fmt.Println(result)
+	return true
+}
+
+func update (c customer) (b bool) {
+	db, err := getDB()
+	stm, err := db.Prepare("update customer set pname = $1, price = $2 where id = $3")
+	if err != nil {
+		log.Println(err)
+		return false
+	}
+	result, err1 := stm.Exec(c.pname, c.price, c.id)
+	if err1 != nil {
+		log.Println(err)
+	}
+	fmt.Println(result)
+	return true
+}
