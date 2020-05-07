@@ -1,0 +1,396 @@
+/**golang UT测试
+
+一、 handler测试：
+1. 导入 
+
+  //mock 请求接口（get,post,put,delete.....）
+  unitTest "github.com/Valiben/gin_unit_test" 
+	"github.com/Valiben/gin_unit_test/utils"    
+  
+  // mock 方法体内部调用的的方法
+  "bou.ke/monkey"
+  // 断言
+  "github.com/magiconair/properties/assert"
+*/
+  
+//例子：
+
+ package handler
+
+import (
+	"bou.ke/monkey"
+	"fmt"
+	"git.dhc.com.cn/dtc/ctp/model"
+	"git.dhc.com.cn/dtc/ctp/service"
+	unitTest "github.com/Valiben/gin_unit_test"
+	"github.com/Valiben/gin_unit_test/utils"
+	"github.com/gin-gonic/gin"
+	"github.com/magiconair/properties/assert"
+	"github.com/pkg/errors"
+	"log"
+	"os"
+	"reflect"
+	"testing"
+)
+  
+  var s *service.Service
+
+/*
+忘记密码handler的测试
+*/
+func init() {
+	// initialize the router
+	router := gin.Default()
+	h := Handler{}
+	// a handler for getting static resources
+	router.Static("/file", "./")
+
+	// some handlers for post/put/delete requests
+	router.POST("/v1/forget/password", h.ForgetPassWord)
+
+	router.POST("/v1/register", h.CreateUser)
+	// set the router
+	unitTest.SetRouter(router)
+
+	newLog := log.New(os.Stdout, "", log.Llongfile|log.Ldate|log.Ltime)
+	unitTest.SetLog(newLog)
+}
+
+/**
+忘记密码
+*/
+// TestHandler_ForgetPassWord1  测试：参数错误
+func TestHandler_ForgetPassWord1(t *testing.T) {
+	// make request params
+	testStruct := []map[string]interface{}{
+		// 邮箱为空
+		{"email": "",
+			"password":         "123456",
+			"email_validation": "654321"},
+		// 密码为空
+		{"email": "123456@qq.com",
+			"password":         "",
+			"email_validation": "654321"},
+		// 验证码为空
+		{"email": "123456@qq.com",
+			"password":         "123456",
+			"email_validation": ""},
+	}
+
+	resp := OrdinaryResponse{
+		Code:    "PARAM_ERROR",
+		Message: "参数错误",
+	}
+
+	for _, params := range testStruct {
+		err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/forget/password", "form", params, &resp)
+		if err != nil {
+			t.Errorf("TestHandler_ForgetPassWord1: %v\n", err)
+			return
+		}
+		if resp.Message != "参数错误" {
+			t.Errorf("TestHandler_ForgetPassWord1: PARAM_ERROR is not expected\n")
+			return
+		}
+	}
+}
+
+// TestHandler_ForgetPassWord1  测试：邮箱未注册平台
+func TestHandler_ForgetPassWord2(t *testing.T) {
+	// make request params
+	params := map[string]interface{}{
+		// 邮箱为空
+		"email":            "123456@qq.com",
+		"password":         "123456",
+		"email_validation": "654321",
+	}
+
+	resp := OrdinaryResponse{
+		Code:    "PARAM_ERROR",
+		Message: "邮箱未注册平台",
+	}
+	user := &model.CtpUser{}
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserInfoByEmail", func(_ *service.Service, email string) *model.CtpUser { return user })
+
+	err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/forget/password", "form", params, &resp)
+	if err != nil {
+		t.Errorf("TestHandler_ForgetPassWord2: %v\n", err)
+		return
+	}
+	if resp.Message != "邮箱未注册平台" {
+		t.Errorf("TestHandler_ForgetPassWord2: UN_REGISTER is not expected\n")
+		return
+	}
+}
+
+// TestHandler_ForgetPassWord1  测试：验证码错误
+func TestHandler_ForgetPassWord3(t *testing.T) {
+	// make request params
+	params := map[string]interface{}{
+		// 邮箱为空
+		"email":            "123456@qq.com",
+		"password":         "123456",
+		"email_validation": "654321",
+	}
+
+	resp := OrdinaryResponse{
+		Code:    "PARAM_ERROR",
+		Message: "验证码错误",
+	}
+
+	user := &model.CtpUser{
+		UserCode: "user_one",
+	}
+	emailInfo := &model.CtpEmailCode{
+		EmailValidation: "111222",
+	}
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserInfoByEmail", func(_ *service.Service, email string) *model.CtpUser { return user })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetEmailCode", func(_ *service.Service, email string) *model.CtpEmailCode { return emailInfo })
+
+	err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/forget/password", "form", params, &resp)
+	if err != nil {
+		t.Errorf("TestHandler_ForgetPassWord3: %v\n", err)
+		return
+	}
+	if resp.Message != "验证码错误" {
+		t.Errorf("TestHandler_ForgetPassWord3: 验证码错误 is not expected\n")
+		return
+	}
+}
+
+// TestHandler_ForgetPassWord1  测试：成功
+func TestHandler_ForgetPassWord4(t *testing.T) {
+	// make request params
+	params := map[string]interface{}{
+		// 邮箱为空
+		"email":            "123456@qq.com",
+		"password":         "123456",
+		"email_validation": "654321",
+	}
+
+	resp := OrdinaryResponse{Data: false}
+	user := &model.CtpUser{
+		UserCode: "user_one",
+	}
+	emailInfo := &model.CtpEmailCode{
+		EmailValidation: "654321",
+	}
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserInfoByEmail", func(_ *service.Service, email string) *model.CtpUser { return user })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetEmailCode", func(_ *service.Service, email string) *model.CtpEmailCode { return emailInfo })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "ForgetPassword", func(_ *service.Service, ctpUser model.CtpUser) bool { return true })
+
+	err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/forget/password", "form", params, &resp)
+	if err != nil {
+		t.Errorf("TestHandler_ForgetPassWord4: %v\n", err)
+		return
+	}
+	fmt.Println(resp.Data)
+	if resp.Data != true {
+		t.Errorf("TestHandler_ForgetPassWord4: UN_REGISTER is not expected\n")
+		return
+	}
+}
+
+/**
+注册
+*/
+
+// TestHandler_CreateUser1  测试：参数错误
+func TestHandler_CreateUser1(t *testing.T) {
+	// make request params
+	testStruct := []map[string]interface{}{
+		// 邮箱为空
+		{"email": "",
+			"password":         "123456",
+			"email_validation": "654321",
+			"user_code":        "user123"},
+		// 密码为空
+		{"email": "123456@qq.com",
+			"password":         "",
+			"email_validation": "654321",
+			"user_code":        "user123"},
+		// 验证码为空
+		{"email": "123456@qq.com",
+			"password":         "123456",
+			"email_validation": "",
+			"user_code":        "user123"},
+		// 用户名为空
+		{"email": "123456@qq.com",
+			"password":         "123456",
+			"email_validation": "",
+			"user_code":        ""},
+	}
+
+	resp := OrdinaryResponse{
+		Code:    "PARAM_ERROR",
+		Message: "参数错误",
+	}
+
+	for _, params := range testStruct {
+		err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/register", "form", params, &resp)
+
+		if err != nil {
+			t.Errorf("TestHandler_CreateUser1: %v\n", err)
+			return
+		}
+		assert.Equal(t, nil, err)
+		assert.Equal(t, "参数错误", resp.Message)
+	}
+}
+
+// TestHandler_CreateUser1  测试：此用户名太受欢迎,请更换一个
+func TestHandler_CreateUser2(t *testing.T) {
+	// make request params
+	params := map[string]interface{}{
+		"email":            "123456@qq.com",
+		"password":         "123456",
+		"email_validation": "654321",
+		"user_code":        "user123",
+	}
+
+	resp := OrdinaryResponse{
+		Code:    "PARAM_ERROR",
+		Message: "此用户名太受欢迎,请更换一个",
+	}
+	user := &model.CtpUser{
+		UserCode:"user123",
+	}
+
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserCode", func(_ *service.Service, userCode string) *model.CtpUser { return user })
+
+	err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/register", "form", params, &resp)
+	if err != nil {
+		t.Errorf("TestHandler_CreateUser2: %v\n", err)
+		return
+	}
+	assert.Equal(t, "此用户名太受欢迎,请更换一个", resp.Message)
+}
+
+// TestHandler_CreateUser1  测试：此邮箱已注册,请更换一个或用邮箱登陆
+func TestHandler_CreateUser3(t *testing.T) {
+	// make request params
+	params := map[string]interface{}{
+		"email":            "123456@qq.com",
+		"password":         "123456",
+		"email_validation": "654321",
+		"user_code":        "user123",
+	}
+
+	resp := OrdinaryResponse{
+		Code:    "PARAM_ERROR",
+		Message: "此邮箱已注册,请更换一个或用邮箱登陆",
+	}
+	user := &model.CtpUser{
+		//UserCode:"user123",
+		Email:"123456@qq.com",
+	}
+
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserCode", func(_ *service.Service, userCode string) *model.CtpUser { return user })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserInfoByEmail", func(_ *service.Service, email string) *model.CtpUser { return user })
+
+	err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/register", "form", params, &resp)
+	if err != nil {
+		t.Errorf("TestHandler_CreateUser3: %v\n", err)
+		return
+	}
+	assert.Equal(t, "此邮箱已注册,请更换一个或用邮箱登陆", resp.Message)
+}
+
+// TestHandler_CreateUser1  测试：验证码错误
+func TestHandler_CreateUser4(t *testing.T) {
+	// make request params
+	params := map[string]interface{}{
+		"email":            "123456@qq.com",
+		"password":         "123456",
+		"email_validation": "654321",
+		"user_code":        "user123",
+	}
+
+	resp := OrdinaryResponse{
+		Code:    "PARAM_ERROR",
+		Message: "验证码错误",
+	}
+	user := &model.CtpUser{}
+	userEmail := &model.CtpEmailCode{
+		EmailValidation: "654320",
+	}
+
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserCode", func(_ *service.Service, userCode string) *model.CtpUser { return user })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserInfoByEmail", func(_ *service.Service, email string) *model.CtpUser { return user })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetEmailCode", func(_ *service.Service, email string) *model.CtpEmailCode { return userEmail })
+
+	err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/register", "form", params, &resp)
+	if err != nil {
+		t.Errorf("TestHandler_CreateUser4: %v\n", err)
+		return
+	}
+	assert.Equal(t, "验证码错误", resp.Message)
+}
+
+// TestHandler_CreateUser1  测试：验证参数错误
+func TestHandler_CreateUser5(t *testing.T) {
+	// make request params
+	params := map[string]interface{}{
+		"email":            "123456@qq.com",
+		"password":         "123456",
+		"email_validation": "654321",
+		"user_code":        "user123",
+	}
+
+	resp := OrdinaryResponse{
+		Code:    "PARAM_ERROR",
+		Message: "参数错误",
+	}
+	user := &model.CtpUser{}
+	userEmail := &model.CtpEmailCode{
+		EmailValidation: "654321",
+	}
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserCode", func(_ *service.Service, userCode string) *model.CtpUser { return user })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserInfoByEmail", func(_ *service.Service, email string) *model.CtpUser { return user })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetEmailCode", func(_ *service.Service, email string) *model.CtpEmailCode { return userEmail })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "CreateUser", func(_ *service.Service, _ model.CtpUser) (bool, error) { return true, errors.New("")})
+
+	err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/register", "form", params, &resp)
+	if err != nil {
+		t.Errorf("TestHandler_CreateUser5: %v\n", err)
+		return
+	}
+	assert.Equal(t, "参数错误", resp.Message)
+}
+
+// TestHandler_CreateUser1  测试：成功
+func TestHandler_CreateUser6(t *testing.T) {
+	// make request params
+	params := map[string]interface{}{
+		"email":            "123456@qq.com",
+		"password":         "123456",
+		"email_validation": "654321",
+		"user_code":        "user123",
+	}
+
+	resp := OrdinaryResponse{
+		Data: true,
+	}
+	user := &model.CtpUser{}
+	userEmail := &model.CtpEmailCode{
+		EmailValidation: "654321",
+	}
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserCode", func(_ *service.Service, userCode string) *model.CtpUser { return user })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserInfoByEmail", func(_ *service.Service, email string) *model.CtpUser { return user })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetEmailCode", func(_ *service.Service, email string) *model.CtpEmailCode { return userEmail })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "CreateUser", func(_ *service.Service, _ model.CtpUser) (bool, error) { return true, nil})
+
+	err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/register", "form", params, &resp)
+	if err != nil {
+		t.Errorf("TestHandler_CreateUser6: %v\n", err)
+		return
+	}
+	assert.Equal(t, true, resp.Data)
+}
+
+// OrdinaryResponse
+type OrdinaryResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Data    bool   `json:"data"`
+}
