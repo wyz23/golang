@@ -1,0 +1,240 @@
+/**
+导入
+"github.com/DATA-DOG/go-sqlmock"
+	. "github.com/agiledragon/gomonkey"
+"bou.ke/monkey"
+"github.com/stretchr/testify/assert"
+
+方法TestDao_ChangePassWord内BeginTx  和ctx context.Context, opts *sql.TxOptions 可以解决debug能过，正常跑不过的case跑通
+
+*/
+package dao
+
+import (
+	"bou.ke/monkey"
+	"context"
+	"database/sql"
+	"errors"
+	"git.dhc.com.cn/dtc/ctp/model"
+	"git.dhc.com.cn/dtc/ctp/utils"
+	"github.com/DATA-DOG/go-sqlmock"
+	. "github.com/agiledragon/gomonkey"
+	"github.com/go-sql-driver/mysql"
+	"github.com/jinzhu/gorm"
+	"github.com/stretchr/testify/assert"
+	"reflect"
+	"testing"
+	"time"
+)
+
+const (
+	dbTypeDriver = "sqlmock"
+	dbTypeHost   = "cloudtest"
+)
+
+// TestDao_GetUserInfoByEmail ...
+func TestDao_GetUserInfoByEmail(t *testing.T) {
+	smock, mock, dbConnect := dbConnect()
+	defer dbConnect.Close()
+	defer smock.Close()
+	mockDao := &gorm.DB{}
+	patches := ApplyMethod(reflect.TypeOf(mockDao), "Table", func(_ *gorm.DB, name string) *gorm.DB {
+		return dbConnect
+	})
+	defer patches.Reset()
+	email := "123456@qq.com"
+	id := 1
+	mockRows := sqlmock.NewRows([]string{"id", "email"}).AddRow(id, email)
+	mock.ExpectQuery(`SELECT \* FROM "ctp_user_t" WHERE (.+)email = ?`).WillReturnRows(mockRows)
+	dao := New(context.Background())
+
+	ctpUserList := dao.GetUserInfoByEmail(email)
+	assert.Equal(t, email, ctpUserList.Email)
+	assert.Equal(t, id, ctpUserList.ID)
+}
+
+// TestDao_GetEmailCode ...
+func TestDao_GetEmailCode(t *testing.T) {
+	smock, mock, dbConnect := dbConnect()
+	defer dbConnect.Close()
+	defer smock.Close()
+	mockDao := &gorm.DB{}
+	patches := ApplyMethod(reflect.TypeOf(mockDao), "Table", func(_ *gorm.DB, name string) *gorm.DB {
+		return dbConnect
+	})
+	defer patches.Reset()
+	email := "123456@qq.com"
+	emailValidation := "123456"
+	mockRows := sqlmock.NewRows([]string{"email_validation"}).AddRow(emailValidation)
+	mock.ExpectQuery(`SELECT \* FROM "ctp_email_code" WHERE (.+)email = ?`).WillReturnRows(mockRows)
+	dao := New(context.Background())
+
+	ctpUserList := dao.GetEmailCode(email)
+	assert.Equal(t, emailValidation, ctpUserList.EmailValidation)
+}
+// TestDao_GetUserCode ...
+func TestDao_GetUserCode(t *testing.T) {
+	smock, mock, dbConnect := dbConnect()
+	defer dbConnect.Close()
+	defer smock.Close()
+	mockDao := &gorm.DB{}
+	patches := ApplyMethod(reflect.TypeOf(mockDao), "Table", func(_ *gorm.DB, name string) *gorm.DB {
+		return dbConnect
+	})
+	defer patches.Reset()
+	userCode := "user123"
+	mockRows := sqlmock.NewRows([]string{"user_code"}).AddRow(userCode)
+	mock.ExpectQuery(`SELECT \* FROM "ctp_user_t" WHERE (.+)user_code = ?`).WillReturnRows(mockRows)
+	dao := New(context.Background())
+
+	ctpUserList := dao.GetUserCode(userCode)
+	assert.Equal(t, userCode, ctpUserList.UserCode)
+}
+
+// TestDao_ChangePassWord ...
+func TestDao_ChangePassWord(t *testing.T) {
+	smock, mock, dbConnect := dbConnect()
+	defer dbConnect.Close()
+	defer smock.Close()
+	mockDao := &gorm.DB{}
+	patches := ApplyMethod(reflect.TypeOf(mockDao), "BeginTx", func(_ *gorm.DB,ctx context.Context, opts *sql.TxOptions) *gorm.DB {
+		return dbConnect
+	})
+	defer patches.Reset()
+	user := model.CtpUser{
+		ID:1,
+		Password:"123456",
+		UserCode:"user123",
+	}
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "ctp_user_t"`).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	dao := New(context.Background())
+
+	bool := dao.ChangePassWord(user)
+	assert.Equal(t, true, bool)
+}
+
+// TestDao_ChangePassWord_error ...
+func TestDao_ChangePassWord_error(t *testing.T) {
+	smock, mock, dbConnect := dbConnect()
+	defer dbConnect.Close()
+	defer smock.Close()
+	mockDao := &gorm.DB{}
+	patches := ApplyMethod(reflect.TypeOf(mockDao), "BeginTx", func(_ *gorm.DB,ctx context.Context, opts *sql.TxOptions) *gorm.DB {
+		return dbConnect
+	})
+	defer patches.Reset()
+	user := model.CtpUser{
+		ID:1,
+		Password:"123456",
+		UserCode:"user123",
+	}
+	mock.ExpectBegin()
+	mock.ExpectExec(`UPDATE "ctp_user_t"`).WillReturnError(errors.New(""))
+	mock.ExpectCommit()
+	dao := New(context.Background())
+
+	bool := dao.ChangePassWord(user)
+	assert.Equal(t, false, bool)
+}
+// TestDao_CreateUser ...
+func TestDao_CreateUser(t *testing.T) {
+	smock, mock, dbConnect := dbConnect()
+	defer dbConnect.Close()
+	defer smock.Close()
+	mockDao := &gorm.DB{}
+	patches := ApplyMethod(reflect.TypeOf(mockDao), "BeginTx", func(_ *gorm.DB,ctx context.Context, opts *sql.TxOptions) *gorm.DB {
+		return dbConnect
+	})
+	defer patches.Reset()
+
+	now := utils.Str2FormatDate(utils.FormatDate2YYYYMMDDHHmm(time.Now()))
+	user := model.CtpUser{
+		UserNo:          "69702",
+		UserCode:        "user123",
+		RoleId:          "",
+		Password:        "9a91a755053c148682dd43bcf817b09e",
+		RegTime:         now,
+		ShowName:        "user123",
+		IsLocked:        "10",
+		LoginTime:       now,
+		CreateAt:        now,
+		CreateUser:      "",
+		UpdateAt:        now,
+		UpdateUser:      "",
+		DeleteAt:        mysql.NullTime{},
+		StfToken:        "413273e463f04362bb7ddd9d01f3e0c8c9e5f28e195f49a281a18127f1679d9a",
+		Email:           "123456@qq.com",
+		EmailValidation: "123456",
+	}
+	monkey.Patch(model.NewCtpUser,func(ctpUser model.CtpUser) *model.CtpUser {
+		return &user
+	})
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO "ctp_user_t"`).
+		WithArgs("69702","user123","","9a91a755053c148682dd43bcf817b09e",now,"user123","10",now,now,"",now,"",mysql.NullTime{},"413273e463f04362bb7ddd9d01f3e0c8c9e5f28e195f49a281a18127f1679d9a","123456@qq.com","123456").
+		WillReturnResult(sqlmock.NewResult(1,1))
+	mock.ExpectCommit()
+	dao := New(context.Background())
+
+	bool := dao.CreateUser(user)
+	assert.Equal(t, true, bool)
+}
+// TestDao_CreateUser_error ...
+func TestDao_CreateUser_error(t *testing.T) {
+	smock, mock, dbConnect := dbConnect()
+	defer dbConnect.Close()
+	defer smock.Close()
+	mockDao := &gorm.DB{}
+	patches := ApplyMethod(reflect.TypeOf(mockDao), "BeginTx", func(_ *gorm.DB,ctx context.Context, opts *sql.TxOptions) *gorm.DB {
+		return dbConnect
+	})
+	defer patches.Reset()
+
+	now := utils.Str2FormatDate(utils.FormatDate2YYYYMMDDHHmm(time.Now()))
+	user := model.CtpUser{
+		UserNo:          "69702",
+		UserCode:        "user123",
+		RoleId:          "",
+		Password:        "9a91a755053c148682dd43bcf817b09e",
+		RegTime:         now,
+		ShowName:        "user123",
+		IsLocked:        "10",
+		LoginTime:       now,
+		CreateAt:        now,
+		CreateUser:      "",
+		UpdateAt:        now,
+		UpdateUser:      "",
+		DeleteAt:        mysql.NullTime{},
+		StfToken:        "413273e463f04362bb7ddd9d01f3e0c8c9e5f28e195f49a281a18127f1679d9a",
+		Email:           "123456@qq.com",
+		EmailValidation: "123456",
+	}
+	monkey.Patch(model.NewCtpUser,func(ctpUser model.CtpUser) *model.CtpUser {
+		return &user
+	})
+	mock.ExpectBegin()
+	mock.ExpectExec(`INSERT INTO "ctp_user_t"`).
+		WithArgs("69702","user123","","9a91a755053c148682dd43bcf817b09e",now,"user123","10",now,now,"",now,"",mysql.NullTime{},"413273e463f04362bb7ddd9d01f3e0c8c9e5f28e195f49a281a18127f1679d9a","123456@qq.com","123456").
+		WillReturnError(errors.New(""))
+	mock.ExpectCommit()
+	dao := New(context.Background())
+
+	bool := dao.CreateUser(user)
+	assert.Equal(t, false, bool)
+}
+
+// dbConnect ...
+func dbConnect() (*sql.DB, sqlmock.Sqlmock, *gorm.DB) {
+	smock, mock, err := sqlmock.NewWithDSN(dbTypeHost)
+	if err != nil {
+		panic(err)
+	}
+	dbCon, err := gorm.Open(dbTypeDriver, dbTypeHost)
+	if err != nil {
+		panic(err)
+	}
+	return smock, mock, dbCon
+}
