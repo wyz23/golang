@@ -1,0 +1,144 @@
+//model 
+
+type CtpGroup struct {
+	ID          int       `json:"ID";gorm:"primary_key"`
+	GroupName   string    `json:"GroupName"`
+	GroupCode   string    `json:"GroupCode"`
+	Description string    `json:"Description"`
+	Avatar      string    `json:"Avatar"`
+	OwnerID     string    `json:"OwnerID"`                     //重点关注
+	Email       string    `json:"Email"`
+	CreateAt    time.Time `json:"CreateAt"`
+	UpdateAt    time.Time `json:"UpdateAt"`
+}
+
+//CtpUser 定义CtpUser结构体
+type CtpUser struct {
+	ID              int            `json:"id";gorm:"primary_key"`
+	UserNo          string         `json:"user_no"`               //重点关注
+	UserCode        string         `json:"user_code"`
+	RoleId          string         `json:"role_id"`
+	Password        string         `json:"password"`
+	RegTime         time.Time      `json:"reg_time"`
+	ShowName        string         `json:"show_name"`
+	IsLocked        string         `json:"is_locked"`
+	LoginTime       time.Time      `json:"login_time"`
+	CreateAt        time.Time      `json:"create_at"`
+	CreateUser      string         `json:"create_user"`
+	UpdateAt        time.Time      `json:"update_at"`
+	UpdateUser      string         `json:"update_user"`
+	DeleteAt        mysql.NullTime `json:"delete_at"`
+	StfToken        string         `json:"stf_token"`
+	Email           string         `json:"email"`
+	EmailValidation string         `json:"email_validation"`
+}
+
+
+type CtpGroupUser struct {
+	CtpGroup
+	CtpUsers CtpUser `gorm:"ForeignKey:OwnerID;AssociationForeignKey:UserNo"`  //重点关注
+}
+
+
+
+// dao接口 sql
+// tx.Preload("CtpUsers") 使用Preload（预加载）关联 
+func (d *Dao) GetGroupList() []*model.CtpGroupUser {
+	tx := d.db.Table(ctpGroup)
+	groupList := &[]*model.CtpGroupUser{}
+  
+	tx = tx.Preload("CtpUsers").Joins("left join ctp_user_t on user_no = owner_id") // 重点关注
+  
+	tx = tx.Find(&groupList)
+	fmt.Println(mapToJson(&groupList))
+	log.ErrorWhenErr(d.logger, tx.Error)
+	return *groupList
+}
+
+//返回数据
+/**
+{
+    "data": [
+        {
+            "ID": 11,
+            "GroupName": "fdhhjgggggg",
+            "GroupCode": "gasgggfgggggg",
+            "Description": ";;;;87gggg",
+            "Avatar": "",
+            "OwnerID": "49252",
+            "Email": "kjhlggggg",
+            "CreateAt": "2020-01-22T10:16:42+08:00",
+            "UpdateAt": "2020-01-22T10:17:08+08:00",
+            "CtpUsers": {
+                "id": 1,
+                "user_no": "49252",
+                "user_code": "admin",
+                "role_id": "1",
+                "password": "9a91a75505g3c1486fsf82dd43bcfdsaf817b09esfafaafasf",
+                "reg_time": "2020-01-14T15:25:45+08:00",
+                "show_name": "admin",
+                "is_locked": "10",
+                "login_time": "0001-01-01T00:00:00+08:00",
+                "create_at": "2020-01-14T15:25:45+08:00",
+                "create_user": "",
+                "update_at": "2020-04-28T09:03:35+08:00",
+                "update_user": "",
+                "delete_at": {
+                    "Time": "0001-01-01T00:00:00Z",
+                    "Valid": false
+                },
+                "stf_token": "c04cac25edfb490a9c734b3e9851cc4b90c516f6a57a44d6b1cada799a3f570e",
+                "email": "",
+                "email_validation": ""
+            }
+        },
+        {
+            "ID": 1,
+            "GroupName": "1组FFgg",
+            "GroupCode": "14587",
+            "Description": "sfafa",
+            "Avatar": "http://192.168.64.211:9102/group_avatar/",
+            "OwnerID": "69702",
+            "Email": "fs",
+            "CreateAt": "2020-01-21T12:00:01+08:00",
+            "UpdateAt": "2020-04-02T10:59:54+08:00",
+            "CtpUsers": {
+                "id": 233,
+                "user_no": "69702",
+                "user_code": "user123",
+                "role_id": "",
+                "password": "9a91a75505g3c1486fsf82dd43bcfdsaf817b09esfafaafasf",
+                "reg_time": "2020-05-06T09:59:37+08:00",
+                "show_name": "user123",
+                "is_locked": "10",
+                "login_time": "2020-05-06T09:59:37+08:00",
+                "create_at": "2020-05-06T09:59:37+08:00",
+                "create_user": "",
+                "update_at": "2020-05-06T09:59:37+08:00",
+                "update_user": "",
+                "delete_at": {
+                    "Time": "0001-01-01T00:00:00Z",
+                    "Valid": false
+                },
+                "stf_token": "413273e463f04362bb7ddd9d01f3e0c8c9e5f28e195f49a281a18127f1679d9a",
+                "email": "123456@qq.com",
+                "email_validation": "123456"
+            }
+        }
+    ],
+}
+**/
+
+
+// map转 json str
+func mapToJson(result interface{}) string {
+	// map转 json str
+	jsonBytes, _ := json.Marshal(result)
+	jsonStr := string(jsonBytes)
+	return jsonStr
+}
+
+//TableName 使CtpGroup结构体对应数据库的ctp_group表
+func (ctpGroup *CtpGroup) TableName() string {
+	return "ctp_group"
+}
