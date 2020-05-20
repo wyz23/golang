@@ -12,6 +12,33 @@
   // 断言
   "github.com/magiconair/properties/assert"
 */
+
+/**
+只针对gotest,其他的有待探索
+    unitTest "github.com/Valiben/gin_unit_test" 
+    "github.com/Valiben/gin_unit_test/utils"    
+带文件上传的测试
+和普通测试：请求的方法和参数不一样
+例：
+普通请求：
+params := map[string]interface{}{
+		"email":            "123456@qq.com",
+		"password":         "123456",
+		"email_validation": "654321",
+		"user_code":        "user123",
+	}
+err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/register", "form", params, &resp)
+带文件上传请求：
+params := map[string]interface{}{
+		"group_name":  "一号组",
+		"group_code":  "one",
+		"email":       "one@dhc.com",
+		"description": "one 描述内容",
+		"user_name":   "user123",
+		"file_name":   "ctp_group_handler_test_upload_image.png",//上传文件的相对地址(绝对地址也行：例：D:\\ctp_group_handler_test_upload_image.png)
+	}
+err := unitTest.TestFileHandlerUnMarshalResp(utils.POST, "/v1/group", (params["file_name"]).(string), "file", params, &resp)
+*/
   
 //例子：
 
@@ -387,6 +414,56 @@ func TestHandler_CreateUser6(t *testing.T) {
 	}
 	assert.Equal(t, true, resp.Data)
 }
+
+/**
+这个方法带文件上传的测试
+和普通区别在于：请求的方法和参数不一样
+例：
+普通请求：
+params := map[string]interface{}{
+		"email":            "123456@qq.com",
+		"password":         "123456",
+		"email_validation": "654321",
+		"user_code":        "user123",
+	}
+err := unitTest.TestHandlerUnMarshalResp(utils.POST, "/v1/register", "form", params, &resp)
+带文件上传请求：
+params := map[string]interface{}{
+		"group_name":  "一号组",
+		"group_code":  "one",
+		"email":       "one@dhc.com",
+		"description": "one 描述内容",
+		"user_name":   "user123",
+		"file_name":   "ctp_group_handler_test_upload_image.png",//上传文件的相对地址(绝对地址也行：例：D:\\ctp_group_handler_test_upload_image.png)
+	}
+err := unitTest.TestFileHandlerUnMarshalResp(utils.POST, "/v1/group", (params["file_name"]).(string), "file", params, &resp)
+*/
+func TestHandler_CreateGroup_OK(t *testing.T) {
+	// make request params
+	testStruct := []map[string]interface{}{
+		{
+			"group_name":  "一号组",
+			"group_code":  "one",
+			"email":       "one@dhc.com",
+			"description": "one 描述内容",
+			"user_name":   "user123",
+			"file_name":   "ctp_group_handler_test_upload_image.png",
+		},
+	}
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "CreateGroup", func(_ *service.Service, _ model.CtpGroup) error { return nil })
+	monkey.PatchInstanceMethod(reflect.TypeOf(s), "GetUserNo", func(_ *service.Service, _ string) string { return "NotExist" })
+	monkey.Patch(util.ScriptUploadProgress, func(fileInfos model.FormFileInfo, relativePath string) {})
+	resp := OrdinaryResponse{}
+	for _, params := range testStruct {
+		err := unitTest.TestFileHandlerUnMarshalResp(utils.POST, "/v1/group", (params["file_name"]).(string), "file", params, &resp)
+		if err != nil {
+			t.Errorf("TestHandler_CreateGroupInfo_OK: %v\n", err)
+			return
+		}
+		assert.Equal(t, true, resp.Data)
+	}
+}
+
 
 // OrdinaryResponse
 type OrdinaryResponse struct {
